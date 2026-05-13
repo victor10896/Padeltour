@@ -3767,6 +3767,58 @@
     </g>
   </svg>
   <style>#app{position:relative;z-index:1;}</style>
+<div id="login-screen" style="
+  position:fixed;inset:0;z-index:99999;
+  background:#0a1628;
+  display:flex;align-items:center;justify-content:center;
+">
+  <div style="
+    background:#111f3a;
+    border:1px solid rgba(64,114,180,0.25);
+    border-radius:16px;
+    padding:48px 40px;
+    width:100%;max-width:380px;
+    box-shadow:0 32px 80px rgba(0,0,0,0.7);
+  ">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="
+        width:48px;height:48px;
+        background:linear-gradient(135deg,#4072b4,#2a4a82);
+        border-radius:8px;
+        display:inline-flex;align-items:center;justify-content:center;
+        font-family:'Bebas Neue',sans-serif;font-size:28px;color:#0a1628;
+        margin-bottom:16px;
+      ">P</div>
+      <div style="font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:4px;color:#f0f4ff">PÁDEL TOUR</div>
+      <div style="font-size:13px;color:#7a9cc4;margin-top:4px;letter-spacing:2px">ACCESO PRIVADO</div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <label style="font-size:11px;font-weight:700;letter-spacing:2px;color:#7a9cc4;text-transform:uppercase;display:block;margin-bottom:6px">Email</label>
+        <input id="login-email" type="email" placeholder="usuario@email.com"
+          style="width:100%;background:#07101f;border:1px solid rgba(64,114,180,0.2);border-radius:6px;padding:11px 14px;color:#f0f4ff;font-family:'Outfit',sans-serif;font-size:14px;outline:none;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="font-size:11px;font-weight:700;letter-spacing:2px;color:#7a9cc4;text-transform:uppercase;display:block;margin-bottom:6px">Contraseña</label>
+        <input id="login-pass" type="password" placeholder="••••••••"
+          style="width:100%;background:#07101f;border:1px solid rgba(64,114,180,0.2);border-radius:6px;padding:11px 14px;color:#f0f4ff;font-family:'Outfit',sans-serif;font-size:14px;outline:none;box-sizing:border-box">
+      </div>
+      <div id="login-error" style="color:#c0392b;font-size:12px;min-height:18px;text-align:center"></div>
+      <button id="login-btn" style="
+        width:100%;
+        background:linear-gradient(135deg,#4072b4,#2a4a82);
+        border:none;border-radius:6px;
+        padding:14px;
+        font-family:'Bebas Neue',sans-serif;font-size:18px;letter-spacing:3px;
+        color:#f0f4ff;cursor:pointer;
+        margin-top:4px;
+        transition:filter 0.2s;
+      ">INGRESAR</button>
+    </div>
+  </div>
+</div>
+
   <div id="app">
 
     <!-- ═══════════════ HEADER ═══════════════ -->
@@ -6803,7 +6855,61 @@
       }
     };
 
-    const boot = () => {
+    const showApp = () => {
+      const ls = document.getElementById('login-screen');
+      if (ls) ls.style.display = 'none';
+      document.getElementById('app').style.display = '';
+    };
+
+    const showLogin = () => {
+      const ls = document.getElementById('login-screen');
+      if (ls) ls.style.display = 'flex';
+      document.getElementById('app').style.display = 'none';
+    };
+
+    const initAuth = async () => {
+      // Ocultar app hasta verificar sesión
+      document.getElementById('app').style.display = 'none';
+
+      // Verificar sesión activa
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        showApp();
+        return;
+      }
+      showLogin();
+
+      // Botón login
+      document.getElementById('login-btn').addEventListener('click', async () => {
+        const email = document.getElementById('login-email').value.trim();
+        const pass  = document.getElementById('login-pass').value;
+        const errEl = document.getElementById('login-error');
+        const btn   = document.getElementById('login-btn');
+
+        errEl.textContent = '';
+        btn.textContent   = 'INGRESANDO...';
+        btn.style.opacity = '0.7';
+
+        const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+
+        if (error) {
+          errEl.textContent = 'Email o contraseña incorrectos';
+          btn.textContent   = 'INGRESAR';
+          btn.style.opacity = '1';
+          return;
+        }
+        showApp();
+      });
+
+      // Enter en el campo contraseña
+      document.getElementById('login-pass').addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('login-btn').click();
+      });
+    };
+
+    const boot = async () => {
+      await initAuth();
+
       // Header date badge — DD/MM/YYYY
       const _now = new Date();
       const _dd  = String(_now.getDate()).padStart(2, '0');
