@@ -6970,8 +6970,11 @@
 
       // Modal buttons
       $('modal-ok').addEventListener('click', () => {
-        if (_modalCallback) _modalCallback();
+        const cb = _modalCallback;
         closeModal();
+        if (cb) {
+          try { cb(); } catch(e) { console.error('Modal callback error:', e); }
+        }
       });
       $('modal-cancel').addEventListener('click', closeModal);
       $('modal-backdrop').addEventListener('click', e => {
