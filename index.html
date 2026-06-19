@@ -1172,6 +1172,65 @@
     .mod-icon-btn.del:hover { background: rgba(192,57,43,0.15); }
 
     /* ═══════════════════════════════════════════════════════════
+       IMPORTAR GRUPOS MODAL
+       ═══════════════════════════════════════════════════════════ */
+    .imp-dupla-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: rgba(64,114,180,0.07);
+      border: 1px solid rgba(64,114,180,0.15);
+      border-radius: 6px;
+    }
+    .imp-dupla-name {
+      flex: 1;
+      font-size: 14px;
+      color: #f0f4ff;
+      font-family: 'Outfit', sans-serif;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .imp-group-select {
+      background: #07101f;
+      border: 1px solid rgba(64,114,180,0.4);
+      border-radius: 5px;
+      padding: 5px 8px;
+      color: #f0f4ff;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      cursor: pointer;
+      outline: none;
+      flex-shrink: 0;
+    }
+    .imp-group-select.unset {
+      border-color: rgba(192,57,43,0.5);
+      color: rgba(240,244,255,0.4);
+    }
+    .imp-preview {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .imp-preview-chip {
+      font-family: var(--f-display);
+      font-size: 11px;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: rgba(64,114,180,0.12);
+      border: 1px solid rgba(64,114,180,0.25);
+      color: var(--gold);
+    }
+    .imp-preview-chip.chip-ok {
+      background: rgba(39,174,96,0.1);
+      border-color: rgba(39,174,96,0.3);
+      color: #27ae60;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
        TOOLTIPS / SMALL HELPERS
        ═══════════════════════════════════════════════════════════ */
     .section-divider {
@@ -4108,6 +4167,9 @@
                   <button class="btn btn-primary btn-lg" id="btn-generar" disabled style="width:100%">
                     GENERAR TORNEO
                   </button>
+                  <button class="btn btn-ghost btn-lg" id="btn-importar-grupos" disabled style="width:100%;margin-top:8px">
+                    IMPORTAR GRUPOS
+                  </button>
                   <div class="generar-hint" id="generar-hint">Completa los requisitos para continuar</div>
                 </div>
               </div>
@@ -4232,6 +4294,37 @@
       </div>
       <div class="modal-actions">
         <button class="btn btn-ghost" id="mod-cerrar-btn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════ IMPORTAR GRUPOS MODAL ═══════════════ -->
+  <div class="modal-backdrop" id="modal-importar-backdrop">
+    <div class="modal" style="max-width:560px;width:94%;max-height:90vh;display:flex;flex-direction:column;">
+      <div class="modal-title">IMPORTAR GRUPOS</div>
+      <div style="color:var(--white-60);font-size:13px;margin-bottom:16px;line-height:1.5">
+        Asigna manualmente cada dupla a su grupo. Los partidos round-robin se generarán solos.
+      </div>
+
+      <!-- Num grupos control -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;padding:10px 14px;background:rgba(64,114,180,0.07);border:1px solid rgba(64,114,180,0.15);border-radius:8px;">
+        <span style="font-size:13px;color:var(--white-60);flex:1">Número de grupos</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="mod-icon-btn" id="imp-num-dec">−</button>
+          <span id="imp-num-val" style="font-family:var(--f-display);font-size:22px;color:var(--gold);min-width:28px;text-align:center">3</span>
+          <button class="mod-icon-btn" id="imp-num-inc">+</button>
+        </div>
+      </div>
+
+      <!-- Group preview chips -->
+      <div id="imp-preview" class="imp-preview" style="margin-bottom:14px"></div>
+
+      <!-- Dupla assignment list -->
+      <div id="imp-duplas-list" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:6px;margin-bottom:16px;min-height:0"></div>
+
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="imp-cancelar-btn">Cancelar</button>
+        <button class="btn btn-primary" id="imp-confirmar-btn" disabled>Confirmar Grupos</button>
       </div>
     </div>
   </div>
@@ -4656,6 +4749,7 @@
       const btnGen  = $('btn-generar');
       const hint    = $('generar-hint');
       btnGen.disabled = !canGen;
+      $('btn-importar-grupos').disabled = !canGen;
 
       if (!formato && n < 12)      { hint.textContent = `Agrega ${12-n} duplas más y elige formato`; hint.className = 'generar-hint'; }
       else if (!formato)            { hint.textContent = 'Elige el formato de llaves'; hint.className = 'generar-hint'; }
@@ -4742,6 +4836,120 @@
       };
 
       save();
+      showVistaGrupos();
+    };
+
+    // ── IMPORTAR GRUPOS ─────────────────────────────────────────
+
+    let impNumGrupos = 2;
+
+    const openImportarGrupos = () => {
+      impNumGrupos = calcGroups(S.cfg.duplas.length).numGroups;
+      renderImportarModal();
+      $('modal-importar-backdrop').classList.add('is-open');
+    };
+
+    const closeImportarGrupos = () => {
+      $('modal-importar-backdrop').classList.remove('is-open');
+    };
+
+    const renderImportarModal = () => {
+      const { duplas } = S.cfg;
+      const LABELS = 'ABCDEFGHIJ'.slice(0, impNumGrupos);
+
+      $('imp-num-val').textContent = impNumGrupos;
+
+      // Preserve existing valid selections
+      const existing = {};
+      $('imp-duplas-list').querySelectorAll('.imp-group-select').forEach(sel => {
+        if (sel.value && LABELS.includes(sel.value)) existing[sel.dataset.id] = sel.value;
+      });
+
+      const listEl = $('imp-duplas-list');
+      listEl.innerHTML = duplas.map(d => {
+        const val = existing[d.id] || '';
+        const opts = LABELS.split('').map(l =>
+          `<option value="${l}"${val === l ? ' selected' : ''}>Grupo ${l}</option>`
+        ).join('');
+        return `<div class="imp-dupla-row">
+          <span class="imp-dupla-name">${d.nombre}</span>
+          <select class="imp-group-select${val ? '' : ' unset'}" data-id="${d.id}">
+            <option value="">— Grupo —</option>${opts}
+          </select>
+        </div>`;
+      }).join('');
+
+      listEl.querySelectorAll('.imp-group-select').forEach(sel => {
+        sel.addEventListener('change', () => {
+          sel.classList.toggle('unset', !sel.value);
+          updateImportarPreview();
+        });
+      });
+
+      updateImportarPreview();
+    };
+
+    const updateImportarPreview = () => {
+      const LABELS = 'ABCDEFGHIJ'.slice(0, impNumGrupos);
+      const counts = {};
+      LABELS.split('').forEach(l => { counts[l] = 0; });
+
+      let allAssigned = true;
+      $('imp-duplas-list').querySelectorAll('.imp-group-select').forEach(sel => {
+        if (sel.value) counts[sel.value] = (counts[sel.value] || 0) + 1;
+        else allAssigned = false;
+      });
+
+      $('imp-preview').innerHTML = LABELS.split('').map(l => {
+        const n = counts[l] || 0;
+        const ok = n >= 3;
+        return `<div class="imp-preview-chip${ok ? ' chip-ok' : ''}">Grupo ${l}: ${n}</div>`;
+      }).join('');
+
+      const allGroupsValid = LABELS.split('').every(l => (counts[l] || 0) >= 3);
+      $('imp-confirmar-btn').disabled = !(allAssigned && allGroupsValid);
+    };
+
+    const buildGroupsFromImport = () => {
+      const LABELS = 'ABCDEFGHIJ'.slice(0, impNumGrupos);
+      const groupMap = {};
+      LABELS.split('').forEach(l => { groupMap[l] = []; });
+
+      $('imp-duplas-list').querySelectorAll('.imp-group-select').forEach(sel => {
+        if (sel.value) groupMap[sel.value].push(sel.dataset.id);
+      });
+
+      return LABELS.split('').filter(l => groupMap[l].length > 0).map((label, i) => ({
+        id:            label,
+        nombre:        `Grupo ${label}`,
+        cancha:        i + 1,
+        duplas:        groupMap[label],
+        partidos:      genRoundRobin(groupMap[label]),
+        clasificacion: initClasificacion(groupMap[label])
+      }));
+    };
+
+    const generateTournamentFromImport = () => {
+      const { nombre, fecha, formato, formato_sets, duplas } = S.cfg;
+      const grupos = buildGroupsFromImport();
+
+      S.activo = {
+        id:             uid(),
+        nombre:         nombre.trim() || 'Torneo Sin Nombre',
+        fecha:          fecha || new Date().toISOString().slice(0,10),
+        formato_llaves: formato,
+        formato_sets:   formato_sets ?? null,
+        duplas:         [...duplas],
+        grupos,
+        mejores_terceros: [],
+        llaves: { cuartos: [], semis: [], final: null },
+        campeon:    null,
+        subcampeon: null,
+        estado:     'en_curso'
+      };
+
+      save();
+      closeImportarGrupos();
       showVistaGrupos();
     };
 
@@ -7297,6 +7505,31 @@
           `Formato ${fmtLabel}: ${sizeDesc}, clasifican ${total} equipos${wildcards>0?` (incluye ${wildcards} wildcard(s))`:''}. Los grupos se sortean aleatoriamente. ¿Continuar?`,
           '¡Generar ahora!',
           generateTournament
+        );
+      });
+
+      // Importar grupos
+      $('btn-importar-grupos').addEventListener('click', openImportarGrupos);
+      $('imp-cancelar-btn').addEventListener('click', closeImportarGrupos);
+      $('modal-importar-backdrop').addEventListener('click', e => {
+        if (e.target === $('modal-importar-backdrop')) closeImportarGrupos();
+      });
+      $('imp-num-dec').addEventListener('click', () => {
+        if (impNumGrupos > 2) { impNumGrupos--; renderImportarModal(); }
+      });
+      $('imp-num-inc').addEventListener('click', () => {
+        if (impNumGrupos < 10) { impNumGrupos++; renderImportarModal(); }
+      });
+      $('imp-confirmar-btn').addEventListener('click', () => {
+        const grupos = buildGroupsFromImport();
+        const tally = {};
+        grupos.forEach(g => { tally[g.duplas.length] = (tally[g.duplas.length] || 0) + 1; });
+        const desc = Object.entries(tally).map(([s,c]) => `${c}×${s}`).join(', ');
+        openModal(
+          '¿Importar estos grupos?',
+          `Se crearán ${grupos.length} grupos (${desc} duplas). Los partidos se generan automáticamente. ¿Continuar?`,
+          '¡Importar ahora!',
+          generateTournamentFromImport
         );
       });
 
