@@ -4408,6 +4408,7 @@
       tab:     'torneo-activo',
       activo:  null,      // current in-progress tournament
       torneos: [],        // finished tournaments
+      userId:  null,      // authenticated user id (set on login)
       cfg: {              // config form (pre-generation)
         nombre:       '',
         fecha:        '',
@@ -4490,17 +4491,19 @@
     // ── PERSISTENCE ─────────────────────────────────────────────
     const save = () => {
       try {
-        localStorage.setItem('pt_activo',  JSON.stringify(S.activo));
-        localStorage.setItem('pt_cfg',     JSON.stringify(S.cfg));
-        localStorage.setItem('pt_torneos', JSON.stringify(S.torneos));
+        const pfx = S.userId ? `_${S.userId}` : '';
+        localStorage.setItem(`pt_activo${pfx}`,  JSON.stringify(S.activo));
+        localStorage.setItem(`pt_cfg${pfx}`,     JSON.stringify(S.cfg));
+        localStorage.setItem(`pt_torneos${pfx}`, JSON.stringify(S.torneos));
       } catch(_) {}
     };
 
     const load = () => {
       try {
-        const a = localStorage.getItem('pt_activo');
-        const c = localStorage.getItem('pt_cfg');
-        const t = localStorage.getItem('pt_torneos');
+        const pfx = S.userId ? `_${S.userId}` : '';
+        const a = localStorage.getItem(`pt_activo${pfx}`);
+        const c = localStorage.getItem(`pt_cfg${pfx}`);
+        const t = localStorage.getItem(`pt_torneos${pfx}`);
         if (a && a !== 'null') S.activo  = JSON.parse(a);
         if (c && c !== 'null') S.cfg     = JSON.parse(c);
         if (t && t !== 'null') S.torneos = JSON.parse(t);
@@ -7352,6 +7355,8 @@
       // Verificar sesión activa
       const { data: { session } } = await sb.auth.getSession();
       if (session) {
+        S.userId = session.user.id;
+        load();
         showApp();
         return;
       }
@@ -7368,7 +7373,7 @@
         btn.textContent   = 'INGRESANDO...';
         btn.style.opacity = '0.7';
 
-        const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+        const { data, error } = await sb.auth.signInWithPassword({ email, password: pass });
 
         if (error) {
           errEl.textContent = 'Email o contraseña incorrectos';
@@ -7376,6 +7381,8 @@
           btn.style.opacity = '1';
           return;
         }
+        S.userId = data.user.id;
+        load();
         showApp();
       });
 
@@ -7615,7 +7622,6 @@
       });
     };
 
-    load();
     boot();
 
     // Presentacional: activa animación de cancha cuando hay torneo en curso
