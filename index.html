@@ -1110,6 +1110,68 @@
     }
 
     /* ═══════════════════════════════════════════════════════════
+       MODIFICAR DUPLAS MODAL
+       ═══════════════════════════════════════════════════════════ */
+    .mod-dupla-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      background: rgba(64,114,180,0.07);
+      border: 1px solid rgba(64,114,180,0.15);
+      border-radius: 6px;
+    }
+    .mod-group-badge {
+      font-family: var(--f-display);
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--gold);
+      background: rgba(200,168,75,0.12);
+      border-radius: 4px;
+      padding: 2px 6px;
+      flex-shrink: 0;
+    }
+    .mod-dupla-name {
+      flex: 1;
+      font-size: 14px;
+      color: #f0f4ff;
+      font-family: 'Outfit', sans-serif;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .mod-dupla-input {
+      flex: 1;
+      background: #07101f;
+      border: 1px solid rgba(64,114,180,0.4);
+      border-radius: 5px;
+      padding: 5px 8px;
+      color: #f0f4ff;
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+      outline: none;
+      min-width: 0;
+    }
+    .mod-icon-btn {
+      background: none;
+      border: 1px solid rgba(64,114,180,0.2);
+      border-radius: 5px;
+      color: var(--white-60);
+      cursor: pointer;
+      padding: 4px 8px;
+      font-size: 13px;
+      line-height: 1;
+      transition: background var(--t-fast), color var(--t-fast);
+      flex-shrink: 0;
+    }
+    .mod-icon-btn:hover { background: rgba(64,114,180,0.2); color: #f0f4ff; }
+    .mod-icon-btn.save  { border-color: rgba(39,174,96,0.4); color: #27ae60; }
+    .mod-icon-btn.save:hover { background: rgba(39,174,96,0.15); }
+    .mod-icon-btn.del   { border-color: rgba(192,57,43,0.3); color: #c0392b; }
+    .mod-icon-btn.del:hover { background: rgba(192,57,43,0.15); }
+
+    /* ═══════════════════════════════════════════════════════════
        TOOLTIPS / SMALL HELPERS
        ═══════════════════════════════════════════════════════════ */
     .section-divider {
@@ -4070,8 +4132,11 @@
             </div>
           </div>
 
-          <!-- Group selector tabs -->
-          <div class="group-tabs" id="group-tabs"></div>
+          <!-- Group selector tabs + modify button -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div class="group-tabs" id="group-tabs" style="flex:1;min-width:0;margin:0;"></div>
+            <button class="btn btn-ghost" id="btn-modificar-duplas" style="white-space:nowrap;flex-shrink:0;">&#9998; Modificar</button>
+          </div>
 
           <!-- Standings + matches (rendered per group) -->
           <div id="group-content-area"></div>
@@ -4154,6 +4219,22 @@
 
     </main>
   </div><!-- /#app -->
+
+  <!-- ═══════════════ MODAL MODIFICAR DUPLAS ═══════════════ -->
+  <div class="modal-backdrop" id="modal-mod-backdrop">
+    <div class="modal" style="max-width:500px;width:94%;max-height:85vh;display:flex;flex-direction:column;">
+      <div class="modal-title">MODIFICAR DUPLAS</div>
+      <div id="mod-duplas-list" style="overflow-y:auto;flex:1;margin-bottom:16px;display:flex;flex-direction:column;gap:8px;"></div>
+      <div style="display:flex;gap:8px;margin-bottom:20px;">
+        <input id="mod-nueva-inp" type="text" placeholder="Nombre nueva dupla"
+          style="flex:1;background:#07101f;border:1px solid rgba(64,114,180,0.25);border-radius:6px;padding:9px 12px;color:#f0f4ff;font-family:'Outfit',sans-serif;font-size:14px;outline:none;">
+        <button class="btn btn-primary" id="mod-agregar-btn">+ Agregar</button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="mod-cerrar-btn">Cerrar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- ═══════════════ MODAL ═══════════════ -->
   <div class="modal-backdrop" id="modal-backdrop">
@@ -4387,27 +4468,68 @@
     };
 
     /**
-     * Generate all round-robin matches for a group.
-     * Every pair plays exactly once.
+     * Generate all round-robin matches for a group using the Berger (circle) method.
+     * Matches are grouped into balanced rounds where each dupla plays exactly once,
+     * then flattened so that every dupla has the maximum possible rest between matches.
      */
     const genRoundRobin = (duplaIds, startNum = 1) => {
-      const matches = [];
-      let num = startNum;
-      for (let i = 0; i < duplaIds.length; i++) {
-        for (let j = i + 1; j < duplaIds.length; j++) {
-          matches.push({
-            id:         uid(),
-            num:        num++,          // partido number within group (1,2,3...)
-            dupla1_id:  duplaIds[i],
-            dupla2_id:  duplaIds[j],
-            sets1:      null,
-            sets2:      null,
-            confirmado: false,
-            tie_break:  false
-          });
+      const n = duplaIds.length;
+      if (n < 2) return [];
+
+      // Add a ghost slot if odd number of duplas so every round has n/2 pairs.
+      // Ghost pairings are byes and are discarded.
+      const players = n % 2 === 0 ? [...duplaIds] : [...duplaIds, null];
+      const m = players.length; // always even
+      const tail = players.slice(1); // rotated each round; length m-1
+
+      const rounds = [];
+      for (let r = 0; r < m - 1; r++) {
+        // Rotate tail right by r positions (circular)
+        const rot = r % tail.length;
+        const rotated = rot === 0
+          ? [...tail]
+          : [...tail.slice(tail.length - rot), ...tail.slice(0, tail.length - rot)];
+        const arr = [players[0], ...rotated];
+
+        const roundMatches = [];
+        for (let i = 0; i < m / 2; i++) {
+          const a = arr[i];
+          const b = arr[m - 1 - i];
+          if (a !== null && b !== null) roundMatches.push([a, b]);
         }
+        if (roundMatches.length > 0) rounds.push(roundMatches);
       }
-      return matches;
+
+      // Flatten rounds into a sequential match list.
+      // At each round transition, prefer starting with a match whose teams
+      // did NOT play in the previous round's last match (maximises rest).
+      const matchPairs = [];
+      let prevLastTeams = new Set();
+
+      for (const round of rounds) {
+        let startIdx = round.findIndex(([a, b]) => !prevLastTeams.has(a) && !prevLastTeams.has(b));
+        if (startIdx === -1)
+          startIdx = round.findIndex(([a, b]) => !prevLastTeams.has(a) || !prevLastTeams.has(b));
+        if (startIdx === -1) startIdx = 0;
+
+        const ordered = startIdx === 0
+          ? [...round]
+          : [round[startIdx], ...round.slice(0, startIdx), ...round.slice(startIdx + 1)];
+
+        for (const pair of ordered) matchPairs.push(pair);
+        prevLastTeams = new Set(ordered[ordered.length - 1]);
+      }
+
+      return matchPairs.map(([a, b], i) => ({
+        id:         uid(),
+        num:        startNum + i,
+        dupla1_id:  a,
+        dupla2_id:  b,
+        sets1:      null,
+        sets2:      null,
+        confirmado: false,
+        tie_break:  false
+      }));
     };
 
     /**
@@ -6325,6 +6447,132 @@
 
     // ── MODAL ───────────────────────────────────────────────────
 
+    // ── MODIFICAR DUPLAS (torneo activo) ────────────────────────
+
+    const openModificarModal = () => {
+      renderModificarModal();
+      $('modal-mod-backdrop').classList.add('is-open');
+    };
+
+    const closeModificarModal = () => {
+      $('modal-mod-backdrop').classList.remove('is-open');
+    };
+
+    const renderModificarModal = () => {
+      const list = $('mod-duplas-list');
+      list.innerHTML = '';
+
+      S.activo.duplas.forEach(d => {
+        const grupo = S.activo.grupos.find(g => g.duplas.includes(d.id));
+        const grupoLabel = grupo ? `G${grupo.id}` : '?';
+
+        const row = document.createElement('div');
+        row.className = 'mod-dupla-row';
+
+        const badge = `<span class="mod-group-badge">${grupoLabel}</span>`;
+        const nameSpan = `<span class="mod-dupla-name">${esc(d.nombre)}</span>`;
+        const nameInput = `<input class="mod-dupla-input" type="text" value="${esc(d.nombre)}" style="display:none">`;
+        const renBtn  = `<button class="mod-icon-btn ren"  title="Renombrar">&#9998;</button>`;
+        const saveBtn = `<button class="mod-icon-btn save" title="Guardar"   style="display:none">&#10003;</button>`;
+        const delBtn  = `<button class="mod-icon-btn del"  title="Eliminar">&#128465;</button>`;
+        row.innerHTML = badge + nameSpan + nameInput + renBtn + saveBtn + delBtn;
+
+        const nameEl  = row.querySelector('.mod-dupla-name');
+        const inputEl = row.querySelector('.mod-dupla-input');
+        const renEl   = row.querySelector('.mod-icon-btn.ren');
+        const saveEl  = row.querySelector('.mod-icon-btn.save');
+        const delEl   = row.querySelector('.mod-icon-btn.del');
+
+        renEl.addEventListener('click', () => {
+          nameEl.style.display  = 'none';
+          inputEl.style.display = '';
+          renEl.style.display   = 'none';
+          saveEl.style.display  = '';
+          inputEl.focus();
+          inputEl.select();
+        });
+
+        const doSave = () => {
+          const newName = inputEl.value.trim();
+          if (!newName) return;
+          const dupla = S.activo.duplas.find(x => x.id === d.id);
+          if (dupla) dupla.nombre = newName;
+          save();
+          renderModificarModal();
+          renderGroupContent();
+        };
+        saveEl.addEventListener('click', doSave);
+        inputEl.addEventListener('keydown', e => { if (e.key === 'Enter') doSave(); });
+
+        delEl.addEventListener('click', () => {
+          openModal(
+            '¿Eliminar dupla?',
+            `Se eliminará "${d.nombre}" y todos sus partidos pendientes del grupo ${grupoLabel}.`,
+            'Eliminar',
+            () => {
+              deleteDuplaActivo(d.id);
+              closeModificarModal();
+              openModificarModal();
+            }
+          );
+        });
+
+        list.appendChild(row);
+      });
+    };
+
+    const deleteDuplaActivo = id => {
+      const grupo = S.activo.grupos.find(g => g.duplas.includes(id));
+      if (!grupo) return;
+      grupo.duplas        = grupo.duplas.filter(x => x !== id);
+      grupo.partidos      = grupo.partidos.filter(p => p.dupla1_id !== id && p.dupla2_id !== id);
+      grupo.clasificacion = grupo.clasificacion.filter(c => c.dupla_id !== id);
+      recalcClasificacion(grupo);
+      S.activo.duplas = S.activo.duplas.filter(d => d.id !== id);
+      save();
+      renderGroupTabs();
+      renderGroupContent();
+      updateGlobalProgress();
+    };
+
+    const addDuplaActivo = nombre => {
+      const newDupla = { id: uid(), nombre: nombre.trim() };
+
+      // Add to group with fewest members
+      const targetGrupo = S.activo.grupos.reduce((min, g) =>
+        g.duplas.length < min.duplas.length ? g : min
+      , S.activo.grupos[0]);
+
+      S.activo.duplas.push(newDupla);
+
+      const existingIds = [...targetGrupo.duplas];
+      targetGrupo.duplas.push(newDupla.id);
+
+      // New matches: newDupla vs every existing dupla in that group
+      const lastNum = targetGrupo.partidos.length > 0
+        ? Math.max(...targetGrupo.partidos.map(p => p.num))
+        : 0;
+      let num = lastNum + 1;
+      existingIds.forEach(existingId => {
+        targetGrupo.partidos.push({
+          id: uid(), num: num++,
+          dupla1_id: newDupla.id, dupla2_id: existingId,
+          sets1: null, sets2: null, confirmado: false, tie_break: false
+        });
+      });
+
+      targetGrupo.clasificacion.push({
+        dupla_id: newDupla.id,
+        pos: 0, pj: 0, pg: 0, pp: 0, sf: 0, sc: 0, pts: 0
+      });
+      recalcClasificacion(targetGrupo);
+
+      save();
+      renderGroupTabs();
+      renderGroupContent();
+      updateGlobalProgress();
+    };
+
     let _modalCallback = null;
 
     const openModal = (title, body, okLabel, cb) => {
@@ -7028,6 +7276,30 @@
           '¡Generar ahora!',
           generateTournament
         );
+      });
+
+      // Modificar duplas
+      $('btn-modificar-duplas').addEventListener('click', openModificarModal);
+      $('mod-cerrar-btn').addEventListener('click', closeModificarModal);
+      $('modal-mod-backdrop').addEventListener('click', e => {
+        if (e.target === $('modal-mod-backdrop')) closeModificarModal();
+      });
+      $('mod-agregar-btn').addEventListener('click', () => {
+        const inp = $('mod-nueva-inp');
+        const nombre = inp.value.trim();
+        if (!nombre) return;
+        addDuplaActivo(nombre);
+        inp.value = '';
+        inp.focus();
+        renderModificarModal();
+      });
+      $('mod-nueva-inp').addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        const nombre = e.target.value.trim();
+        if (!nombre) return;
+        addDuplaActivo(nombre);
+        e.target.value = '';
+        renderModificarModal();
       });
 
       // Back to config (from groups view)
