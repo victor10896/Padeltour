@@ -4095,6 +4095,22 @@
                       </div>
                     </div>
                   </label>
+
+                  <label class="format-option">
+                    <input type="radio" name="formato_sets" value="libre" id="fmt-sets-libre">
+                    <div class="fmt-card">
+                      <div class="fmt-card-top">
+                        <div class="fmt-name">LIBRE</div>
+                        <div class="fmt-check">✓</div>
+                      </div>
+                      <p class="fmt-desc">Sin restricciones de puntuación. Cualquier marcador con un ganador es válido.</p>
+                      <div class="fmt-meta">
+                        <span class="fmt-teams-num">∞</span>
+                        <span class="fmt-teams-lbl">sets<br>sin límite</span>
+                        <span class="fmt-badge">FLEXIBLE</span>
+                      </div>
+                    </div>
+                  </label>
                 </div>
               </div>
 
@@ -4747,7 +4763,7 @@
 
         // Info box
         const fmtLabel  = formato === 'semifinal' ? 'Semifinal Directo' : 'Cuartos de Final';
-        const setsLabel = formato_sets === 'short' ? 'Short Set' : formato_sets === 'completo' ? 'Set Completo' : '';
+        const setsLabel = formato_sets === 'short' ? 'Short Set' : formato_sets === 'completo' ? 'Set Completo' : formato_sets === 'libre' ? 'Libre' : '';
         infoBox.className = 'sum-info type-ok';
         infoBox.innerHTML = `Con <strong>${n} duplas</strong> y formato <strong>${fmtLabel}</strong>: <strong>${numGroups} grupos</strong> (${sizeDesc}), clasifican <strong>${total} equipos</strong>${wildcards > 0 ? ` (${wildcards} por wildcard)` : ''}${setsLabel ? `. Sets: <strong>${setsLabel}</strong>` : ''}.`;
       }
@@ -5167,7 +5183,8 @@
     const renderMatches = grupo => {
       const cancha    = grupo.cancha ?? '—';
       const setsLabel = S.activo?.formato_sets === 'short' ? 'SHORT SET'
-                      : S.activo?.formato_sets === 'completo' ? 'SET COMPLETO' : null;
+                      : S.activo?.formato_sets === 'completo' ? 'SET COMPLETO'
+                      : S.activo?.formato_sets === 'libre' ? 'LIBRE' : null;
       let html = '<div class="matches-list">';
 
       grupo.partidos.forEach((p, idx) => {
@@ -5250,11 +5267,19 @@
       justWonGame: null,
     };
 
+    const validateFreeResult = (s1, s2) => {
+      if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0)
+        return { ok: false, error: 'Ingresa los games para ambas duplas.' };
+      return { ok: true, tieBreak: false };
+    };
+
     const _scWinAt = () => {
+      if (_sc.formato === 'libre') return Infinity;
       if (_sc.type === 'bracket') return _sc.formato === 'long' ? 6 : 4;
       return 4;
     };
     const _scTbAt = () => {
+      if (_sc.formato === 'libre') return Infinity;
       if (_sc.type === 'bracket') return _sc.formato === 'long' ? 5 : 3;
       return 3;
     };
@@ -5356,22 +5381,24 @@
       }
       _sc.games1 = initG1;
       _sc.games2 = initG2;
-      // Check if pre-loaded values already constitute a finished match
-      const winAt = type === 'group' ? 4 : (grupoId ? 4 : 6);
-      const tbAt  = type === 'group' ? 3 : (grupoId ? 3 : 5);
-      if (initG1 === tbAt && initG2 === tbAt) _sc.isTb = true;
-      else if (initG1 >= winAt || initG2 >= winAt) _sc.matchOver = true;
+      // Set formato first so _scWinAt/_scTbAt resolve correctly
       if (type === 'group') {
         const g = S.activo.grupos.find(g => g.id === grupoId);
         _sc.partido = g?.partidos.find(p => p.id === matchId) ?? null;
         _sc.match = null;
-        _sc.formato = 'short';
+        _sc.formato = S.activo?.formato_sets || 'short';
         _sc.esFinal = false;
       } else {
         _sc.match = findMatch(matchId);
         _sc.partido = null;
         _sc.formato = _sc.match?.formato || 'short';
         _sc.esFinal = _sc.match?.round === 'final';
+      }
+      // Check if pre-loaded values already constitute a finished match
+      const winAt = _scWinAt(), tbAt = _scTbAt();
+      if (isFinite(winAt)) {
+        if (initG1 === tbAt && initG2 === tbAt) _sc.isTb = true;
+        else if (initG1 >= winAt || initG2 >= winAt) _sc.matchOver = true;
       }
       _sc.isVentaja = false;
       if (!$('scorer-overlay')) {
@@ -5390,13 +5417,15 @@
     };
 
     const confirmScorer = () => {
-      if (!_sc.matchOver) return;
+      const fmtLibre = _sc.formato === 'libre';
+      const canConfirm = _sc.matchOver || (fmtLibre && (_sc.games1 + _sc.games2) > 0);
+      if (!canConfirm) return;
       const s1 = _sc.games1, s2 = _sc.games2;
       if (_sc.type === 'group') {
         const grupo = S.activo.grupos.find(g => g.id === _sc.grupoId);
         const p = _sc.partido;
         if (!p || !grupo) return;
-        const chk = validateResult(s1, s2);
+        const chk = fmtLibre ? validateFreeResult(s1, s2) : validateResult(s1, s2);
         if (!chk.ok) return;
         p.sets1 = s1; p.sets2 = s2;
         p.confirmado = true; p.tie_break = chk.tieBreak;
@@ -5436,16 +5465,20 @@
         }
       }
       const winAt = _scWinAt();
-      const fmtLbl = _sc.esFinal ? 'GRAN FINAL · VENTAJA' : `MEJOR DE ${winAt} SETS`;
-      const barsCount = (_sc.esFinal && _sc.isVentaja)
-        ? Math.max(winAt + 2, Math.max(_sc.games1, _sc.games2) + 3)
-        : winAt;
+      const fmtLibre = _sc.formato === 'libre';
+      const fmtLbl = fmtLibre ? 'MODO LIBRE'
+        : _sc.esFinal ? 'GRAN FINAL · VENTAJA' : `MEJOR DE ${winAt} SETS`;
+      const barsCount = fmtLibre
+        ? Math.max(_sc.games1, _sc.games2, 3) + 2
+        : (_sc.esFinal && _sc.isVentaja)
+          ? Math.max(winAt + 2, Math.max(_sc.games1, _sc.games2) + 3)
+          : winAt;
 
       const g1Lead = _sc.games1 > _sc.games2;
       const g2Lead = _sc.games2 > _sc.games1;
-      const g1Win  = _sc.matchOver && _sc.games1 > _sc.games2;
-      const g2Win  = _sc.matchOver && _sc.games2 > _sc.games1;
-      const isDone = _sc.matchOver;
+      const isDone = _sc.matchOver || (fmtLibre && (_sc.games1 + _sc.games2) > 0);
+      const g1Win  = isDone && _sc.games1 > _sc.games2;
+      const g2Win  = isDone && _sc.games2 > _sc.games1;
 
       const mkDots = side => {
         const pts   = side === 1 ? _sc.pts1 : _sc.pts2;
@@ -5909,7 +5942,9 @@
 
           const s1 = parseInt(inp1.value, 10);
           const s2 = parseInt(inp2.value, 10);
-          const chk = validateResult(s1, s2);
+          const chk = S.activo?.formato_sets === 'libre'
+            ? validateFreeResult(s1, s2)
+            : validateResult(s1, s2);
 
           if (!chk.ok) {
             if (errEl) errEl.textContent = chk.error;
@@ -6154,10 +6189,12 @@
     const confirmBracketMatch = (matchId, s1, s2) => {
       const m = findMatch(matchId);
       if (!m) return;
-      const fmt = m.formato || 'short';
-      const v = m.round === 'final'
-        ? validateFinalResult(s1, s2, fmt)
-        : fmt === 'long' ? validateBracketResult(s1, s2) : validateResult(s1, s2);
+      const fmt = m.formato || S.activo?.formato_sets || 'short';
+      const v = fmt === 'libre'
+        ? validateFreeResult(s1, s2)
+        : m.round === 'final'
+          ? validateFinalResult(s1, s2, fmt)
+          : fmt === 'long' ? validateBracketResult(s1, s2) : validateResult(s1, s2);
       if (!v.ok) return v.error;
       m.sets1 = s1; m.sets2 = s2;
       m.tieBreak = v.tieBreak;
@@ -7082,7 +7119,7 @@
           <div class="detalle-hero-meta">
             <span class="detalle-meta-chip">&#128197; <b>${fmtDate(t.fecha)}</b></span>
             <span class="detalle-meta-chip">&#9889; <b>${fmtLabel}</b></span>
-            ${t.formato_sets ? `<span class="detalle-meta-chip">&#127919; <b>${t.formato_sets === 'short' ? 'Short Set' : 'Set Completo'}</b></span>` : ''}
+            ${t.formato_sets ? `<span class="detalle-meta-chip">&#127919; <b>${t.formato_sets === 'short' ? 'Short Set' : t.formato_sets === 'completo' ? 'Set Completo' : 'Libre'}</b></span>` : ''}
             <span class="detalle-meta-chip">&#127938; <b>${t.duplas.length} duplas</b></span>
             <span class="detalle-meta-chip">&#127942; <b>${t.grupos.length} grupos</b></span>
           </div>
@@ -7280,7 +7317,7 @@
           <div class="torneo-card-info">
             <div class="torneo-card-name">${esc(t.nombre)}</div>
             <div class="torneo-card-meta">
-              ${fmtDate(t.fecha)} &nbsp;·&nbsp; ${t.duplas.length} duplas &nbsp;·&nbsp; ${fmtLabel}${t.formato_sets ? ` &nbsp;·&nbsp; ${t.formato_sets === 'short' ? 'Short Set' : 'Set Completo'}` : ''}
+              ${fmtDate(t.fecha)} &nbsp;·&nbsp; ${t.duplas.length} duplas &nbsp;·&nbsp; ${fmtLabel}${t.formato_sets ? ` &nbsp;·&nbsp; ${t.formato_sets === 'short' ? 'Short Set' : t.formato_sets === 'completo' ? 'Set Completo' : 'Libre'}` : ''}
             </div>
             ${t.fotos?.length ? `<div class="torneo-card-foto-badge">📷 ${t.fotos.length} foto${t.fotos.length !== 1 ? 's' : ''}</div>` : ''}
           </div>
