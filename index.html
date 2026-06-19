@@ -3973,6 +3973,9 @@
 
         <div class="header-right">
           <span class="header-badge" id="header-date-badge"></span>
+          <button id="btn-logout" title="Cerrar sesión" style="background:none;border:1px solid rgba(240,244,255,0.15);border-radius:6px;color:var(--white-35);cursor:pointer;font-family:var(--f-body);font-size:12px;padding:5px 10px;transition:border-color 0.15s,color 0.15s;" onmouseover="this.style.borderColor='rgba(192,57,43,0.5)';this.style.color='#c0392b'" onmouseout="this.style.borderColor='rgba(240,244,255,0.15)';this.style.color='var(--white-35)'">
+            Salir
+          </button>
         </div>
       </div>
     </header>
@@ -7348,6 +7351,15 @@
       document.getElementById('app').style.display = 'none';
     };
 
+    const logout = async () => {
+      await sb.auth.signOut();
+      S.userId  = null;
+      S.activo  = null;
+      S.torneos = [];
+      S.cfg     = { nombre: '', fecha: '', formato: null, formato_sets: null, duplas: [] };
+      showLogin();
+    };
+
     const initAuth = async () => {
       // Ocultar app hasta verificar sesión
       document.getElementById('app').style.display = 'none';
@@ -7514,6 +7526,9 @@
           generateTournament
         );
       });
+
+      // Logout
+      $('btn-logout').addEventListener('click', logout);
 
       // Importar grupos
       $('btn-importar-grupos').addEventListener('click', openImportarGrupos);
