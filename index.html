@@ -5122,9 +5122,29 @@
     const openScorer = (matchId, type, grupoId) => {
       _sc.matchId = matchId; _sc.type = type; _sc.grupoId = grupoId ?? null;
       _sc.pts1 = 0; _sc.pts2 = 0; _sc.isGolden = false;
-      _sc.games1 = 0; _sc.games2 = 0;
       _sc.isTb = false; _sc.tbPts1 = 0; _sc.tbPts2 = 0;
       _sc.matchOver = false; _sc._hist = []; _sc.justWonGame = null;
+
+      // Pre-load tentative scores already typed in the inputs
+      let initG1 = 0, initG2 = 0;
+      if (type === 'group') {
+        const i1 = document.querySelector(`.js-s1[data-id="${matchId}"]`);
+        const i2 = document.querySelector(`.js-s2[data-id="${matchId}"]`);
+        initG1 = parseInt(i1?.value) || 0;
+        initG2 = parseInt(i2?.value) || 0;
+      } else {
+        const i1 = document.querySelector(`.b-score-inp2[data-match="${matchId}"][data-slot="1"]`);
+        const i2 = document.querySelector(`.b-score-inp2[data-match="${matchId}"][data-slot="2"]`);
+        initG1 = parseInt(i1?.value) || 0;
+        initG2 = parseInt(i2?.value) || 0;
+      }
+      _sc.games1 = initG1;
+      _sc.games2 = initG2;
+      // Check if pre-loaded values already constitute a finished match
+      const winAt = type === 'group' ? 4 : (grupoId ? 4 : 6);
+      const tbAt  = type === 'group' ? 3 : (grupoId ? 3 : 5);
+      if (initG1 === tbAt && initG2 === tbAt) _sc.isTb = true;
+      else if (initG1 >= winAt || initG2 >= winAt) _sc.matchOver = true;
       if (type === 'group') {
         const g = S.activo.grupos.find(g => g.id === grupoId);
         _sc.partido = g?.partidos.find(p => p.id === matchId) ?? null;
