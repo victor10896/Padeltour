@@ -4408,9 +4408,9 @@
         const a = localStorage.getItem('pt_activo');
         const c = localStorage.getItem('pt_cfg');
         const t = localStorage.getItem('pt_torneos');
-        if (a) S.activo  = JSON.parse(a);
-        if (c) S.cfg     = JSON.parse(c);
-        if (t) S.torneos = JSON.parse(t);
+        if (a && a !== 'null') S.activo  = JSON.parse(a);
+        if (c && c !== 'null') S.cfg     = JSON.parse(c);
+        if (t && t !== 'null') S.torneos = JSON.parse(t);
       } catch(_) {}
     };
 
@@ -6394,11 +6394,13 @@
     };
 
     const finalizeTorneo = () => {
+      if (!S.activo) return;
       openModal(
         'Finalizar Torneo',
         '¿Guardar y archivar este torneo? Podrás verlo en Torneos Realizados.',
         'Guardar',
         () => {
+          if (!S.activo) return;
           const hoy = new Date();
           const dd  = String(hoy.getDate()).padStart(2, '0');
           const mm  = String(hoy.getMonth() + 1).padStart(2, '0');
