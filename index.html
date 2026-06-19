@@ -4709,9 +4709,9 @@
       const sumCountSub = $('sum-count-sub');
       sumCount.textContent = n;
 
-      if (n < 12) {
+      if (n < 10) {
         sumCount.className    = 'sum-stat-val is-err';
-        sumCountSub.textContent  = `Faltan ${12 - n} para el mínimo`;
+        sumCountSub.textContent  = `Faltan ${10 - n} para el mínimo`;
         sumCountSub.className = 'sum-stat-sub is-err';
       } else if (n > 24) {
         sumCount.className    = 'sum-stat-val is-err';
@@ -4730,7 +4730,7 @@
       const sumClasifSub = $('sum-clasif-sub');
       const infoBox      = $('sum-info-box');
 
-      if (!formato || n < 12 || n > 24) {
+      if (!formato || n < 10 || n > 24) {
         sumGrupos.textContent    = '—';
         sumGruposSub.textContent = 'Selecciona formato y duplas';
         sumClasif.textContent    = '—';
@@ -4769,15 +4769,15 @@
       }
 
       // ── Generate button ──
-      const canGen  = n >= 12 && n <= 24 && formato !== null && formato_sets !== null;
+      const canGen  = n >= 10 && n <= 24 && formato !== null && formato_sets !== null;
       const btnGen  = $('btn-generar');
       const hint    = $('generar-hint');
       btnGen.disabled = !canGen;
       $('btn-importar-grupos').disabled = !canGen;
 
-      if (!formato && n < 12)      { hint.textContent = `Agrega ${12-n} duplas más y elige formato`; hint.className = 'generar-hint'; }
+      if (!formato && n < 10)      { hint.textContent = `Agrega ${10-n} duplas más y elige formato`; hint.className = 'generar-hint'; }
       else if (!formato)            { hint.textContent = 'Elige el formato de llaves'; hint.className = 'generar-hint'; }
-      else if (n < 12)              { hint.textContent = `Agrega ${12-n} duplas más`; hint.className = 'generar-hint'; }
+      else if (n < 10)              { hint.textContent = `Agrega ${10-n} duplas más`; hint.className = 'generar-hint'; }
       else if (n > 24)              { hint.textContent = 'Máximo 24 duplas permitidas'; hint.className = 'generar-hint'; }
       else if (!formato_sets)       { hint.textContent = 'Elige el formato de sets'; hint.className = 'generar-hint'; }
       else                          { hint.textContent = 'Todo listo ✓'; hint.className = 'generar-hint is-ok'; }
